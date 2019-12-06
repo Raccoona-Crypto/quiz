@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+    url: "jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB_NAME}"
+  jpa:
+    generate-ddl: true
+    hibernate:
+      ddl-auto: update
+
+logging:
+  level:
+    org:
+      hibernate:
+        SQL:
+          TRACE
+        type:
+          descriptor:
+            sql:
+              BasicBinder:
+                TRACE
+
+mainnet: ${MAINNET}
+
+btc:
+  hotWallet:
+    address: ${HOT_WALLET_ADDRESS}
+    private: ${HOT_WALLET_PRIVATE}
+
+blockbook:
+  url: ${BLOCKBOOK_URL}
