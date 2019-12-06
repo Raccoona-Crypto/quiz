@@ -7,18 +7,16 @@ import com.raccoona.dto.UtxoDto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 @Service
 public class BlockbookService {
@@ -39,14 +37,9 @@ public class BlockbookService {
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString(url)
                 .queryParam("confirmed", true);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(Collections.singletonList(APPLICATION_JSON));
-        headers.set("x-request-source", "desktop");
-        headers.add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
-        HttpEntity request = new HttpEntity(headers);
         logger.info(String.format("Get UTXO for address %s and url %s", address, builder.toUriString()));
 
-        ResponseEntity<UtxoDto[]> responseEntity = restTemplate.exchange(builder.toUriString(), HttpMethod.GET, request, UtxoDto[].class);
+        ResponseEntity<UtxoDto[]> responseEntity = restTemplate.exchange(builder.toUriString(), HttpMethod.GET, null, UtxoDto[].class);
 
         logger.info(String.format("response: %s", responseEntity.getStatusCode()));
         Set<UtxoDto> result = Arrays.asList(responseEntity.getBody()).stream().collect(Collectors.toSet());
