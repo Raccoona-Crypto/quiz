@@ -4,6 +4,9 @@ import com.coinselection.CoinSelectionProvider;
 import com.coinselection.dto.CoinSelectionResult;
 import com.coinselection.dto.UnspentOutput;
 import com.raccoona.dto.UtxoDto;
+import com.raccoona.util.Converter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.core.Transaction;
 import org.bitcoinj.params.MainNetParams;
@@ -12,7 +15,6 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import sd.fomin.gerbera.transaction.TransactionBuilder;
-import sd.fomin.gerbera.types.Coin;
 import sd.fomin.gerbera.util.HexUtils;
 
 import java.math.BigDecimal;
@@ -21,6 +23,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.raccoona.util.Converter.convertToSatoshi;
+import static sd.fomin.gerbera.types.Coin.BTC;
 
 @Service
 public class CryptoTransferService {
@@ -46,11 +50,14 @@ public class CryptoTransferService {
         this.coinSelectionProvider = coinSelectionProvider;
     }
 
+    Logger logger = LogManager.getLogger(CryptoTransferService.class);
+
+
     private Boolean isMainnet() {
         return networkParameters == MainNetParams.get();
     }
 
-    public String transfer(String addressTo, BigDecimal amount){
+    public String transfer(String addressTo, BigDecimal amount) {
         String rawTxHex = createTransaction(addressTo, amount);
         return sendTransaction(rawTxHex);
     }
@@ -59,33 +66,42 @@ public class CryptoTransferService {
         Set<UtxoDto> utxos = blockbookService.getUtxos(hotWalletAddress);
         BigDecimal fee = estimateSmartFeePerByte(BLOCKS);
 
-
         CoinSelectionResult coinSelectionResult = selectUtxos(amount, utxos, fee);
 
         List<UnspentOutput> selectedUtxos = coinSelectionResult.component1();
-        Long accumulatedFee = coinSelectionResult.component2().movePointRight(8).longValue();
+        Long accumulatedFee = convertToSatoshi(coinSelectionResult.component2());
 
         checkNotNull(coinSelectionResult);
         checkNotNull(selectedUtxos);
         checkNotNull(accumulatedFee);
 
-        TransactionBuilder transactionBuilder = TransactionBuilder.create(isMainnet(), Coin.BTC);
-        selectedUtxos.forEach(it -> {
-            String txid = it.getTxid();
-            Integer vout = it.getVout();
-            checkNotNull(txid);
-            checkNotNull(vout);
-            String hex = blockbookService.getRawTransaction(txid).getHex();
-            String scriptPubKey = getScriptPubKey(hex, networkParameters, vout);
+        TransactionBuilder transactionBuilder = TransactionBuilder.create(isMainnet(), BTC);
+        selectedUtxos.forEach(it -> addInput(transactionBuilder, it));
 
-            transactionBuilder.from(txid, vout, scriptPubKey, it.getAmount().movePointRight(8).toBigInteger().longValue(), hotWalletPrivate);
-        });
-
-        transactionBuilder.to(addressTo, amount.movePointRight(8).longValue());
+        transactionBuilder.to(addressTo, convertToSatoshi(amount));
         transactionBuilder.withFee(accumulatedFee);
         transactionBuilder.changeTo(hotWalletAddress);
 
+        logger.info(transactionBuilder.toString());
         return transactionBuilder.build().getRawTransaction();
+    }
+
+    private void addInput(TransactionBuilder transactionBuilder, UnspentOutput it) {
+        String txid = it.getTxid();
+        Integer vout = it.getVout();
+        checkNotNull(txid);
+        checkNotNull(vout);
+        String hex = blockbookService.getRawTransaction(txid).getHex();
+        String scriptPubKey = getScriptPubKey(hex, networkParameters, vout);
+
+        transactionBuilder.from(
+                txid,
+                vout,
+                scriptPubKey,
+                convertToSatoshi(it.getAmount()),
+                hotWalletPrivate,
+                true
+        );
     }
 
     private String sendTransaction(String hex) {
@@ -93,10 +109,9 @@ public class CryptoTransferService {
     }
 
     private CoinSelectionResult selectUtxos(BigDecimal amount, Set<UtxoDto> utxos, BigDecimal fee) {
-        List<UnspentOutput> unspentOutputsList = utxos.stream().map(it -> new UnspentOutput(it.getTxid(), it.getVout(), null, null, null,
-                it.getValue().movePointLeft(8),
-                null, null, true, true, true
-        )).collect(Collectors.toList());
+        List<UnspentOutput> unspentOutputsList = utxos.stream()
+                .map(Converter::toUnspentOutput)
+                .collect(Collectors.toList());
 
         return coinSelectionProvider.provide(unspentOutputsList, amount, fee, 1, null, false);
     }
@@ -110,9 +125,7 @@ public class CryptoTransferService {
 
     private BigDecimal estimateSmartFeePerByte(int blocks) {
         BigDecimal fee = blockbookService.estimateFee(blocks);
-        BigDecimal feePerByte = fee.divide(BigDecimal.valueOf(KB));
-
-        return feePerByte;
+        return fee.divide(BigDecimal.valueOf(KB));
     }
 
 }
