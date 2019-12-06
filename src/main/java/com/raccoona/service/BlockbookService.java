@@ -4,6 +4,8 @@ import com.raccoona.dto.RawTransactionDto;
 import com.raccoona.dto.ResultDto;
 import com.raccoona.dto.ResultStringDto;
 import com.raccoona.dto.UtxoDto;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -20,6 +22,8 @@ public class BlockbookService {
     private RestTemplate restTemplate;
     private String baseUrl;
 
+    Logger logger = LogManager.getLogger(BlockbookService.class);
+
     public BlockbookService(RestTemplate restTemplate,
                             @Value("${blockbook.url}") String baseUrl) {
         this.restTemplate = restTemplate;
@@ -31,8 +35,12 @@ public class BlockbookService {
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString(url)
                 .queryParam("confirmed", true);
-        return Arrays.asList(restTemplate.getForObject(
+
+        logger.info(String.format("Get UTXO for address %s and url %s", address, builder.toUriString()));
+        Set<UtxoDto> result = Arrays.asList(restTemplate.getForObject(
                 builder.toUriString(), UtxoDto[].class)).stream().collect(Collectors.toSet());
+        logger.info(String.format("Obtained result: %s", result));
+        return result;
     }
 
     //    0.0002011

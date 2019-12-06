@@ -25,7 +25,7 @@ public class BlockbookServiceTest {
 
     @Test
     public void shouldGetUtxo() {
-        Set<UtxoDto> utxos = blockbookService.getUtxos("19mTqsV4SXrtBRCDF94N2rWAEmN3VMK3B9");
+        Set<UtxoDto> utxos = blockbookService.getUtxos("mnWdTeiVk42nUX7MVzJmvMP9SAznNqpHuj");
         System.out.println(utxos);
         assertNotNull(utxos);
     }
